@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>❤️코켓배송 지렁이 게임❤️</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #fff; font-family: sans-serif; }
+
+    /* 인트로 화면 */
+    #intro {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: #fff;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center; padding: 20px;
+      z-index: 100;
+    }
+    #intro h1 { font-size: 2rem; margin-bottom: 10px; }
+    #intro p { margin: 5px 0; line-height: 1.4; }
+    #intro a { color: #007aff; text-decoration: none; }
+    #intro button {
+      margin-top: 20px;
+      padding: 15px 40px;
+      font-size: 1.2rem;
+      color: #fff; background: #ff6b6b;
+      border: none; border-radius: 8px;
+      cursor: pointer;
+    }
+
+    /* 게임 오버 화면 */
+    #gameOver {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.7);
+      display: none;
+      flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; padding: 20px;
+      z-index: 100;
+      color: #fff;
+    }
+    #gameOver h1 { font-size: 2rem; margin-bottom: 10px; }
+    #gameOver p { margin: 5px 0; line-height: 1.4; }
+    #gameOver a { color: #fff; text-decoration: underline; }
+    #gameOver button {
+      margin-top: 20px;
+      padding: 12px 36px;
+      font-size: 1.1rem;
+      color: #fff; background: #ff9ce0;
+      border: none; border-radius: 8px;
+      cursor: pointer;
+    }
+
+    /* 게임 화면 */
+    #gameContainer { display: flex; flex-direction: column; width: 100%; height: 100%; position: relative; }
+    #gameCanvas { flex: 1; border: 12px solid #000; box-shadow: inset 0 0 20px #000; }
+    #controls {
+      height: 100px; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; z-index: 5;
+    }
+    #controls button {
+      width: 60px; height: 60px; margin: 5px; border-radius: 50%; border: none;
+      background: rgba(0,0,0,0.2); font-size: 24px; color: #000;
+      display: flex; align-items: center; justify-content: center;
+      touch-action: manipulation;
+    }
+    #controls #lr { display: flex; gap: 20px; }
+
+    /* 상단 정보 표시 */
+    #gameInfo {
+      position: absolute; top: 10px; left: 10px;
+      color: #fff; font-size: 20px;
+      text-shadow: 1px 1px 2px #000; z-index: 10;
+    }
+  </style>
+</head>
+<body>
+  <!-- 인트로 -->
+  <div id="intro">
+    <h1>❤️ 코켓배송 - 지렁이 잡기 게임 🚚</h1>
+    <p>코켓배송을 잡으면 점수가 증가하며,<br>속도가 빨라집니다.</p>
+    <p>유튜브 '결코_Gulko' 저작권 콘텐츠입니다.</p>
+    <p>© 2025 코켓게임즈. All rights reserved.<br>
+      <a href="https://www.youtube.com/@Gulko" target="_blank">https://www.youtube.com/@Gulko</a>
+    </p>
+    <button id="startButton">게임 시작</button>
+  </div>
+
+  <!-- 게임 오버 -->
+  <div id="gameOver">
+    <h1>게임 오버! 😢</h1>
+    <p>코팡 구입은 결코와함께</p>
+    <p><a href="https://www.youtube.com/@Gulko" target="_blank">https://www.youtube.com/@Gulko</a></p>
+    <p>사랑합니다. 고객님</p>
+    <button id="restartButton">다시 시작</button>
+  </div>
+
+  <!-- 게임 화면 -->
+  <div id="gameContainer">
+    <div id="gameInfo">
+      <span id="time">Time: 0</span> | <span id="score">Score: 0</span>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <div id="controls">
+      <button id="up">▲</button>
+      <div id="lr">
+        <button id="left">◀</button>
+        <button id="down">▼</button>
+        <button id="right">▶</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- DOM 셀렉션 ---
+    const intro         = document.getElementById('intro');
+    const startButton   = document.getElementById('startButton');
+    const gameOverDiv   = document.getElementById('gameOver');
+    const restartButton = document.getElementById('restartButton');
+    const canvas        = document.getElementById('gameCanvas');
+    const ctx           = canvas.getContext('2d');
+    const controls      = document.getElementById('controls');
+    const timeDisplay   = document.getElementById('time');
+    const scoreDisplay  = document.getElementById('score');
+
+    // --- 캔버스 리사이즈 ---
+    const tileCount = 20;
+    let canvasSize, tileSize;
+    function resizeCanvas() {
+      const ctrlH = controls.offsetHeight;
+      canvasSize = Math.min(window.innerWidth, window.innerHeight - ctrlH);
+      canvas.width  = canvasSize;
+      canvas.height = canvasSize;
+      tileSize = canvasSize / tileCount;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('orientationchange', resizeCanvas);
+    resizeCanvas();
+
+    // --- 리소스 로드 ---
+    const imgSnake = new Image(); imgSnake.src = '1.png';
+    const imgFood  = new Image(); imgFood.src  = '2.png';
+    const bg       = new Image(); bg.src       = 'back.png';
+
+    const eatSound = new Audio('1.mp3');
+    eatSound.preload = 'auto';
+    eatSound.volume = 1.0;
+
+    const bgMusic = new Audio('pick.mp3');
+    bgMusic.loop = true;
+    bgMusic.volume = 0.5;
+
+    // --- 게임 상태 변수 ---
+    let snake, velocity, food, tailLength, speedDelay;
+    let started = false, elapsedTime = 0;
+
+    function resetGame() {
+      snake       = [{ x: 10, y: 10 }];
+      velocity    = { x: 0,  y: 0 };
+      food        = { x: 5,  y: 5 };
+      tailLength  = 1;
+      speedDelay  = 550;
+      elapsedTime = 0;
+      timeDisplay.textContent  = 'Time: 0';
+      scoreDisplay.textContent = 'Score: 0';
+    }
+
+    function placeFood() {
+      food = {
+        x: Math.floor(Math.random() * tileCount),
+        y: Math.floor(Math.random() * tileCount)
+      };
+    }
+
+    function updateScore() {
+      scoreDisplay.textContent = 'Score: ' + (tailLength - 1);
+    }
+
+    function updateTimer() {
+      if (!started) return;
+      elapsedTime++;
+      timeDisplay.textContent = 'Time: ' + elapsedTime;
+      setTimeout(updateTimer, 1000);
+    }
+
+    function gameOver() {
+      started = false;
+      bgMusic.pause();
+      gameOverDiv.style.display = 'flex';
+    }
+
+    function update() {
+      const head = {
+        x: snake[0].x + velocity.x,
+        y: snake[0].y + velocity.y
+      };
+
+      // 벽 충돌
+      if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+        return gameOver();
+      }
+
+      // 몸 관리
+      snake.unshift(head);
+      while (snake.length > tailLength) snake.pop();
+
+      // 자기 충돌
+      for (let i = 1; i < snake.length; i++) {
+        if (snake[i].x === head.x && snake[i].y === head.y) {
+          return gameOver();
+        }
+      }
+
+      // 먹이 섭취
+      if (head.x === food.x && head.y === food.y) {
+        tailLength++;
+        // 새 Audio 객체로 겹쳐 재생 보장
+        const biteSound = new Audio(eatSound.src);
+        biteSound.volume = eatSound.volume;
+        biteSound.currentTime = 0;
+        biteSound.play().catch(() => {});
+        speedDelay = Math.max(100, speedDelay - 5);
+        placeFood();
+      }
+
+      updateScore();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvasSize, canvasSize);
+      ctx.drawImage(bg, 0, 0, canvasSize, canvasSize);
+      ctx.drawImage(imgFood, food.x * tileSize, food.y * tileSize, tileSize, tileSize);
+      snake.forEach(seg => {
+        ctx.drawImage(imgSnake, seg.x * tileSize, seg.y * tileSize, tileSize, tileSize);
+      });
+    }
+
+    function gameLoop() {
+      if (!started) return;
+      update();
+      draw();
+      setTimeout(() => requestAnimationFrame(gameLoop), speedDelay);
+    }
+
+    function startGame() {
+      resetGame();
+      placeFood();
+      bgMusic.currentTime = 0;
+      bgMusic.play().catch(() => {});
+      started = true;
+      intro.style.display      = 'none';
+      gameOverDiv.style.display = 'none';
+      updateTimer();
+      gameLoop();
+    }
+
+    // --- 이벤트 리스너 등록 ---
+    startButton.addEventListener('click', startGame);
+    restartButton.addEventListener('click', startGame);
+    window.addEventListener('keydown', e => {
+      if (!started) return;
+      if (e.key === 'ArrowUp'    && velocity.y === 0) velocity = { x: 0, y: -1 };
+      if (e.key === 'ArrowDown'  && velocity.y === 0) velocity = { x: 0, y:  1 };
+      if (e.key === 'ArrowLeft'  && velocity.x === 0) velocity = { x: -1,y:  0 };
+      if (e.key === 'ArrowRight' && velocity.x === 0) velocity = { x: 1, y:  0 };
+    });
+    ['up','down','left','right'].forEach(dir => {
+      document.getElementById(dir).addEventListener('touchstart', e => {
+        if (!started) return;
+        e.preventDefault();
+        if (dir === 'up'    && velocity.y === 0) velocity = { x: 0, y: -1 };
+        if (dir === 'down'  && velocity.y === 0) velocity = { x: 0, y:  1 };
+        if (dir === 'left'  && velocity.x === 0) velocity = { x: -1,y:  0 };
+        if (dir === 'right' && velocity.x === 0) velocity = { x: 1, y:  0 };
+      });
+    });
+  </script>
+</body>
+</html>
